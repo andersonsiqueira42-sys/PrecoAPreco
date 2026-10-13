@@ -725,8 +725,16 @@ html[data-theme="dark"] .beta-tools{background:#152832;color:#e5f3f1;border-colo
         nexAtivacaoPendente = false;
         document.getElementById('nex-form-ativacao').hidden = true;
         document.getElementById('voltar-inicio').hidden = false;
+        // PASSO 175: após salvar a senha, confirmar a sessão e autorização antes de abrir o painel.
+        // atualizarBotaoSair faz a verificação no servidor e carrega os módulos apenas se autorizado.
         await atualizarBotaoSair();
-        nexAviso('Conta ativada com sucesso! Bem-vindo ao NEXVORA.');
+        if (usuarioLogado && nexAuthorizedUserId === authData.user.id) {
+          nexAviso('Conta ativada com sucesso! Bem-vindo ao NEXVORA.');
+        } else {
+          // Sem sessão válida, solicitar login; nunca liberar o painel por conta própria.
+          abrirAutenticacao(false);
+          nexAviso('Senha cadastrada! Entre com seu e-mail e a nova senha para continuar.');
+        }
       } catch(erro) {
         console.warn('Erro ao definir senha:',erro);
         erroEl.textContent = erro.message || 'Não foi possível ativar sua conta. Tente novamente.';
