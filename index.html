@@ -227,6 +227,15 @@ html[data-theme="dark"] .hub-module{color:#e5f3f1}html[data-theme="dark"] .hub-h
 .beta-actions{display:flex;gap:9px;flex-wrap:wrap;margin:12px 0}.beta-actions button,.beta-actions label.beta-file{background:#0e665e;color:white;border:0;border-radius:10px;padding:11px 13px;font:700 12px inherit;cursor:pointer;font-size:12px}
 .beta-actions label.beta-file{background:#eaf4f2;color:#124e49;border:1px solid #a4d0c7}.beta-tools input[type=checkbox]{accent-color:#0e7769}
 html[data-theme="dark"] .beta-tools{background:#152832;color:#e5f3f1;border-color:#2b4249}html[data-theme="dark"] .beta-tools p{color:#a5bdc1}
+
+/* MISSÃO 161 — notificações NEXVORA */
+#nex-notificacoes{position:fixed;top:20px;right:20px;z-index:2147483647;display:flex;flex-direction:column;gap:12px;width:min(410px,calc(100vw - 28px));pointer-events:none}
+.nex-notificacao{pointer-events:auto;background:#123f4a;color:#fff;border:1px solid #d7b77b80;border-left:5px solid #d8b778;border-radius:15px;box-shadow:0 15px 45px #082b3580;padding:16px;display:flex;gap:12px;align-items:flex-start;animation:nex-entrada .2s ease-out;white-space:pre-line;overflow-wrap:anywhere}
+.nex-notificacao[data-tipo="sucesso"]{border-left-color:#5fd0aa}.nex-notificacao[data-tipo="erro"]{border-left-color:#f19b93}
+.nex-notificacao .nex-simbolo{font-size:23px;line-height:1.2;flex-shrink:0}.nex-notificacao .nex-conteudo{flex:1;min-width:0}.nex-notificacao strong{display:block;font-size:15px;margin-bottom:5px;color:#fff}.nex-notificacao .nex-mensagem{font-size:13px;line-height:1.55;color:#dceceb;max-height:48vh;overflow:auto}.nex-notificacao small{display:block;font-size:10px;letter-spacing:1.5px;color:#d8b778;margin-top:9px;font-weight:700}.nex-fechar{border:0;background:#ffffff18;color:#fff;border-radius:7px;cursor:pointer;padding:4px 9px;font-size:18px;line-height:1.2}
+@keyframes nex-entrada{from{opacity:0;transform:translateY(-9px)}to{opacity:1;transform:translateY(0)}}
+@media(max-width:600px){#nex-notificacoes{top:12px;left:14px;right:14px;width:auto}.nex-notificacao{padding:14px}}
+@media(prefers-reduced-motion:reduce){.nex-notificacao{animation:none}}
 </style>
 </head>
 <body>
@@ -423,6 +432,33 @@ html[data-theme="dark"] .beta-tools{background:#152832;color:#e5f3f1;border-colo
 
   <!-- NEXVORA | Integração com Supabase -->
   <div id="pagamento-overlay" class="pag-overlay" hidden></div>
+  
+  <script>
+  // MISSÃO 161 — alertas visuais sem interromper a navegação.
+  (function(){
+    function notificar(mensagem, tipo){
+      const texto=String(mensagem ?? '');
+      if(!document.body){ return; }
+      let area=document.getElementById('nex-notificacoes');
+      if(!area){area=document.createElement('div');area.id='nex-notificacoes';area.setAttribute('aria-label','Notificações do NEXVORA');document.body.appendChild(area);}
+      const tipoInferido=tipo || (/erro|não foi possível|não autorizado|inválid|falha|incompatível|incorreto|precisa|preencha|confira|não existe|não encontrado|não há|não pode|interrompida/i.test(texto)?'erro':(/sucesso|bem-vindo|concluíd|finalizada|restaurado|salvo|saiu da sua conta/i.test(texto)?'sucesso':'aviso'));
+      const titulo=tipoInferido==='sucesso'?'NEXVORA · Tudo certo!':tipoInferido==='erro'?'NEXVORA · Atenção':'NEXVORA · Informação';
+      const aviso=document.createElement('section');aviso.className='nex-notificacao';aviso.dataset.tipo=tipoInferido;aviso.setAttribute('role',tipoInferido==='erro'?'alert':'status');
+      const simbolo=document.createElement('span');simbolo.className='nex-simbolo';simbolo.setAttribute('aria-hidden','true');simbolo.textContent=tipoInferido==='sucesso'?'✓':tipoInferido==='erro'?'!':'✦';
+      const conteudo=document.createElement('div');conteudo.className='nex-conteudo';
+      const cab=document.createElement('strong');cab.textContent=texto.includes('Bem-vindo ao NEXVORA')?'Bem-vindo ao NEXVORA!':titulo;
+      const corpo=document.createElement('div');corpo.className='nex-mensagem';corpo.textContent=texto==='Login realizado com sucesso! Bem-vindo ao NEXVORA.'?'Seu acesso foi realizado com sucesso. Sua vida financeira sob uma nova perspectiva.':texto;
+      const marca=document.createElement('small');marca.textContent='BY AXION';
+      conteudo.append(cab,corpo,marca);
+      const fechar=document.createElement('button');fechar.type='button';fechar.className='nex-fechar';fechar.setAttribute('aria-label','Fechar notificação');fechar.textContent='×';fechar.addEventListener('click',()=>aviso.remove());
+      aviso.append(simbolo,conteudo,fechar);area.prepend(aviso);
+      while(area.children.length>4)area.lastElementChild.remove();
+      // Detalhes extensos permanecem até o usuário fechar.
+      if(texto.length<220){const tempo=tipoInferido==='erro'?8500:5500;setTimeout(()=>aviso.remove(),tempo);}
+    }
+    window.nexAviso=notificar;
+  })();
+  </script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
   <script>
     const SUPABASE_URL = "https://dxlewbofnvxruytbukzn.supabase.co";
@@ -496,7 +532,7 @@ html[data-theme="dark"] .beta-tools{background:#152832;color:#e5f3f1;border-colo
             usuarioLogado = false;
             nexAuthorizedUserId = null;
             mostrarTela('tela-inicial');
-            alert('Não foi possível validar seu convite com a AXION. Verifique sua conexão e tente novamente.');
+            nexAviso('Não foi possível validar seu convite com a AXION. Verifique sua conexão e tente novamente.');
           }
           return;
         }
@@ -511,7 +547,7 @@ html[data-theme="dark"] .beta-tools{background:#152832;color:#e5f3f1;border-colo
           document.getElementById('nav-criar').hidden = false;
           document.getElementById('email-usuario').textContent = '';
           mostrarTela('tela-inicial');
-          alert('Acesso não autorizado. O beta fechado do NEXVORA é exclusivo para convidados da AXION.');
+          nexAviso('Acesso não autorizado. O beta fechado do NEXVORA é exclusivo para convidados da AXION.');
           await supabaseClient.auth.signOut();
           return;
         }
@@ -537,23 +573,23 @@ html[data-theme="dark"] .beta-tools{background:#152832;color:#e5f3f1;border-colo
       const email = document.getElementById("login-email").value.trim();
       const senha = document.getElementById("login-senha").value;
       if (!email || !senha) {
-        alert("Preencha seu e-mail e sua senha para criar uma conta.");
+        nexAviso("Preencha seu e-mail e sua senha para criar uma conta.");
         return;
       }
       if (senha.length < 6) {
-        alert("Sua senha deve ter pelo menos 6 caracteres.");
+        nexAviso("Sua senha deve ter pelo menos 6 caracteres.");
         return;
       }
       try {
         const { error } = await supabaseClient.auth.signUp({ email, password: senha });
         if (error) {
-          alert("Não foi possível criar a conta: " + error.message);
+          nexAviso("Não foi possível criar a conta: " + error.message);
         } else {
-          alert("Cadastro solicitado! Verifique seu e-mail para confirmar sua conta.");
+          nexAviso("Cadastro solicitado! Verifique seu e-mail para confirmar sua conta.");
         }
       } catch (erro) {
         console.error("Erro de conexão no cadastro:", erro);
-        alert("Não foi possível conectar ao servidor. Tente novamente.");
+        nexAviso("Não foi possível conectar ao servidor. Tente novamente.");
       }
     }
 
@@ -563,25 +599,25 @@ html[data-theme="dark"] .beta-tools{background:#152832;color:#e5f3f1;border-colo
       const email = document.getElementById("login-email").value.trim();
       const senha = document.getElementById("login-senha").value;
       if (!email || !senha) {
-        alert("Preencha seu e-mail e sua senha.");
+        nexAviso("Preencha seu e-mail e sua senha.");
         return;
       }
       try {
         const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password: senha });
         if (error) {
-          alert("Não foi possível entrar. Confira seu e-mail e sua senha.");
+          nexAviso("Não foi possível entrar. Confira seu e-mail e sua senha.");
           return;
         }
         if (data.user) {
           document.getElementById("login-senha").value = "";
           await atualizarBotaoSair();
           if (usuarioLogado && nexAuthorizedUserId === data.user.id) {
-            alert("Login realizado com sucesso! Bem-vindo ao NEXVORA.");
+            nexAviso("Login realizado com sucesso! Bem-vindo ao NEXVORA.");
           }
         }
       } catch (erro) {
         console.error("Erro de conexão no login:", erro);
-        alert("Não foi possível conectar ao servidor. Tente novamente.");
+        nexAviso("Não foi possível conectar ao servidor. Tente novamente.");
       }
     });
 
@@ -589,19 +625,19 @@ html[data-theme="dark"] .beta-tools{background:#152832;color:#e5f3f1;border-colo
       try {
         const { error } = await supabaseClient.auth.signOut();
         if (error) {
-          alert("Não foi possível sair da conta. Tente novamente.");
+          nexAviso("Não foi possível sair da conta. Tente novamente.");
           return;
         }
         document.getElementById("login-senha").value = "";
         await atualizarBotaoSair();
-        alert("Você saiu da sua conta com sucesso!");
+        nexAviso("Você saiu da sua conta com sucesso!");
       } catch (erro) {
         console.error("Erro de conexão ao sair:", erro);
-        alert("Não foi possível conectar ao servidor. Tente novamente.");
+        nexAviso("Não foi possível conectar ao servidor. Tente novamente.");
       }
     });
 
-    document.getElementById("btn-recuperar-senha").addEventListener("click",()=>alert("A recuperação de senha será implementada em uma próxima etapa."));
+    document.getElementById("btn-recuperar-senha").addEventListener("click",()=>nexAviso("A recuperação de senha será implementada em uma próxima etapa."));
     atualizarBotaoSair();
     supabaseClient.auth.onAuthStateChange(function () {
       // Evita fazer chamadas assíncronas diretamente dentro do callback de autenticação.
@@ -629,12 +665,12 @@ function carregarListas(id){
 function salvarListas(){
   if(!contaListasId)return;
   try{localStorage.setItem(chaveListas(contaListasId),JSON.stringify(listasCompras));}
-  catch(e){alert('Não foi possível salvar no navegador. Verifique o espaço disponível ou as configurações de privacidade.');console.error(e);}
+  catch(e){nexAviso('Não foi possível salvar no navegador. Verifique o espaço disponível ou as configurações de privacidade.');console.error(e);}
 }
 function salvarHistorico(){
  if(!contaListasId)return false;
  try {localStorage.setItem(chaveHistorico(contaListasId),JSON.stringify(historicoCompras));return true;}
- catch(e){console.error(e);alert('Não foi possível salvar o histórico neste navegador.');return false;}
+ catch(e){console.error(e);nexAviso('Não foi possível salvar o histórico neste navegador.');return false;}
 }
 function renderListas(){
  const el=document.getElementById('conteudo-listas');
@@ -732,12 +768,12 @@ function confirmarFinalizacao(){
  if(!salvarHistorico()){historicoCompras.shift();document.getElementById('pag-erro').textContent='Falha ao salvar o histórico. A lista foi preservada.';return;}
  listasCompras=listasCompras.filter(l=>l.id!==lista.id);atualizarListas();fecharFinalizacao();
  renderFinanceiro();
- alert('Compra finalizada! O valor total já aparece como despesa no Financeiro, sem duplicar parcelas.');
+ nexAviso('Compra finalizada! O valor total já aparece como despesa no Financeiro, sem duplicar parcelas.');
 }
 
 function atualizarListas(){salvarListas();renderListas();}
 document.getElementById('form-nova-lista').addEventListener('submit',e=>{
- e.preventDefault();if(!contaListasId)return alert('Entre na sua conta para criar listas.');
+ e.preventDefault();if(!contaListasId)return nexAviso('Entre na sua conta para criar listas.');
  const input=document.getElementById('nome-nova-lista'),nome=input.value.trim();if(!nome)return;
  listasCompras.unshift({id:crypto.randomUUID(),nome,itens:[]});input.value='';atualizarListas();
 });
@@ -745,14 +781,14 @@ document.getElementById('conteudo-listas').addEventListener('submit',e=>{
  const form=e.target.closest('[data-form-lista]');if(!form)return;e.preventDefault();
  const lista=listasCompras.find(l=>l.id===form.dataset.formLista);if(!lista)return;
  const nome=form.elements.produto.value.trim(),quantidade=numero(form.elements.quantidade.value),preco=numero(form.elements.preco.value);
- if(!nome||!Number.isFinite(quantidade)||quantidade<=0||!Number.isFinite(preco)||preco<0)return alert('Informe produto, quantidade maior que zero e preço válido.');
+ if(!nome||!Number.isFinite(quantidade)||quantidade<=0||!Number.isFinite(preco)||preco<0)return nexAviso('Informe produto, quantidade maior que zero e preço válido.');
  lista.itens.push({id:crypto.randomUUID(),nome,quantidade,preco,comprado:false});atualizarListas();
 });
 document.getElementById('conteudo-listas').addEventListener('click',e=>{
  const historicoBotao=e.target.closest('[data-acao-historico]');
  if(historicoBotao){
   const h=historicoCompras.find(x=>x.id===historicoBotao.dataset.historico);if(!h)return;
-  if(historicoBotao.dataset.acaoHistorico==='detalhes')alert(`${h.nome}\n${h.data} — ${h.estabelecimento}\n\n${h.itens.map(i=>`${i.nome}: ${i.quantidade} × ${moeda(i.preco)} = ${moeda(i.quantidade*i.preco)}`).join('\n')}\n\nTotal: ${moeda(h.total)}\nPagamentos: ${h.pagamentos?.length?h.pagamentos.map(p=>nomeForma(p.forma)+' '+moeda(p.valor)+(p.forma==='credito'?' — '+p.parcelas+'x':'')).join(' + '):'Não informado'}`);
+  if(historicoBotao.dataset.acaoHistorico==='detalhes')nexAviso(`${h.nome}\n${h.data} — ${h.estabelecimento}\n\n${h.itens.map(i=>`${i.nome}: ${i.quantidade} × ${moeda(i.preco)} = ${moeda(i.quantidade*i.preco)}`).join('\n')}\n\nTotal: ${moeda(h.total)}\nPagamentos: ${h.pagamentos?.length?h.pagamentos.map(p=>nomeForma(p.forma)+' '+moeda(p.valor)+(p.forma==='credito'?' — '+p.parcelas+'x':'')).join(' + '):'Não informado'}`);
   if(historicoBotao.dataset.acaoHistorico==='duplicar'){listasCompras.unshift({id:crypto.randomUUID(),nome:h.nome+' (nova)',itens:h.itens.map(i=>({...i,id:crypto.randomUUID(),comprado:false}))});atualizarListas();}
   return;
  }
@@ -760,19 +796,19 @@ document.getElementById('conteudo-listas').addEventListener('click',e=>{
  const card=botao.closest('[data-lista]'),lista=listasCompras.find(l=>l.id===card?.dataset.lista);if(!lista)return;
  const acao=botao.dataset.acao,item=lista.itens.find(i=>i.id===botao.closest('[data-item]')?.dataset.item);
  if(acao==='finalizar'){
-  if(!lista.itens.length)return alert('Adicione produtos antes de finalizar.');
+  if(!lista.itens.length)return nexAviso('Adicione produtos antes de finalizar.');
   const pendentes=lista.itens.filter(i=>!i.comprado).length;
   if(pendentes&&!confirm(`Há ${pendentes} produto(s) não marcado(s) como comprado(s). Deseja finalizar mesmo assim?`))return;
   abrirFinalizacao(lista);return;
  }
- if(acao==='renomear'){const nome=prompt('Novo nome da lista:',lista.nome);if(nome===null)return;if(!nome.trim())return alert('Informe um nome.');lista.nome=nome.trim().slice(0,80);}
+ if(acao==='renomear'){const nome=prompt('Novo nome da lista:',lista.nome);if(nome===null)return;if(!nome.trim())return nexAviso('Informe um nome.');lista.nome=nome.trim().slice(0,80);}
  else if(acao==='excluir-lista'){if(!confirm(`Excluir a lista "${lista.nome}" e todos os seus produtos?`))return;listasCompras=listasCompras.filter(l=>l.id!==lista.id);}
  else if(acao==='excluir-item'&&item){if(!confirm(`Excluir "${item.nome}"?`))return;lista.itens=lista.itens.filter(i=>i.id!==item.id);}
  else if(acao==='editar-item'&&item){
-  const nome=prompt('Nome do produto:',item.nome);if(nome===null)return;if(!nome.trim())return alert('Informe um nome.');
+  const nome=prompt('Nome do produto:',item.nome);if(nome===null)return;if(!nome.trim())return nexAviso('Informe um nome.');
   const q=prompt('Quantidade:',String(item.quantidade));if(q===null)return;
   const p=prompt('Preço unitário (R$):',String(item.preco));if(p===null)return;
-  const quantidade=numero(q),preco=numero(p);if(!Number.isFinite(quantidade)||quantidade<=0||!Number.isFinite(preco)||preco<0)return alert('Quantidade ou preço inválido.');
+  const quantidade=numero(q),preco=numero(p);if(!Number.isFinite(quantidade)||quantidade<=0||!Number.isFinite(preco)||preco<0)return nexAviso('Quantidade ou preço inválido.');
   item.nome=nome.trim().slice(0,90);item.quantidade=quantidade;item.preco=preco;
  }else return;
  atualizarListas();
@@ -798,7 +834,7 @@ function carregarFinanceiro(id){
 function salvarFinanceiro(){
  if(!contaListasId)return false;
  try{localStorage.setItem(chaveFinanceiro(contaListasId),JSON.stringify(lancamentosFinanceiros));return true;}
- catch(e){console.error('Falha ao salvar financeiro',e);alert('Não foi possível salvar o lançamento neste navegador.');return false;}
+ catch(e){console.error('Falha ao salvar financeiro',e);nexAviso('Não foi possível salvar o lançamento neste navegador.');return false;}
 }
 function dataCompraISO(h){
  if(/^\d{4}-\d{2}-\d{2}$/.test(h.dataISO||''))return h.dataISO;
@@ -834,10 +870,10 @@ function renderFinanceiro(){
 }
 document.getElementById('fin-mes').addEventListener('change',renderFinanceiro);
 document.getElementById('fin-form').addEventListener('submit',e=>{
- e.preventDefault();if(!contaListasId)return alert('Entre na sua conta.');
+ e.preventDefault();if(!contaListasId)return nexAviso('Entre na sua conta.');
  const descricao=document.getElementById('fin-descricao').value.trim(),valor=numero(document.getElementById('fin-valor').value);
  const data=document.getElementById('fin-data').value,tipo=document.getElementById('fin-tipo').value;
- if(!descricao||!Number.isFinite(valor)||centavos(valor)<=0||!/^(\d{4})-(\d{2})-(\d{2})$/.test(data)||!['receita','despesa'].includes(tipo))return alert('Confira os dados do lançamento.');
+ if(!descricao||!Number.isFinite(valor)||centavos(valor)<=0||!/^(\d{4})-(\d{2})-(\d{2})$/.test(data)||!['receita','despesa'].includes(tipo))return nexAviso('Confira os dados do lançamento.');
  const l={id:crypto.randomUUID(),tipo,descricao:descricao.slice(0,100),categoria:document.getElementById('fin-categoria').value,valor:centavos(valor)/100,data,forma:document.getElementById('fin-forma').value};
  lancamentosFinanceiros.unshift(l);if(!salvarFinanceiro()){lancamentosFinanceiros.shift();return;}
  document.getElementById('fin-mes').value=data.slice(0,7);e.target.reset();document.getElementById('fin-data').value=hojeISO();renderFinanceiro();
@@ -864,7 +900,7 @@ function salvarVeiculos(){
  try{
   localStorage.setItem(chaveVeiculos(contaListasId),JSON.stringify(veiculos));
   localStorage.setItem(chaveAbastecimentos(contaListasId),JSON.stringify(abastecimentos));return true;
- }catch(e){alert('Não foi possível salvar os dados veiculares neste navegador.');return false;}
+ }catch(e){nexAviso('Não foi possível salvar os dados veiculares neste navegador.');return false;}
 }
 function nomeVeiculo(id){const v=veiculos.find(v=>v.id===id);return v?v.nome:'Veículo removido';}
 function abastecimentosOrdenados(id){return abastecimentos.filter(a=>a.veiculoId===id).sort((a,b)=>a.km-b.km||a.data.localeCompare(b.data));}
@@ -896,23 +932,23 @@ function renderVeiculos(){
  document.getElementById('abs-lista').innerHTML=abastecimentos.length?[...abastecimentos].sort((a,b)=>b.data.localeCompare(a.data)||b.km-a.km).map(a=>`<div class="fin-linha"><div><b>${esc(nomeVeiculo(a.veiculoId))} · ${esc(a.posto||'Abastecimento')}</b><small>${esc(a.data.split('-').reverse().join('/'))} • ${a.km.toLocaleString('pt-BR')} km • ${a.litros.toLocaleString('pt-BR')} L • ${moeda(a.preco)}/L • ${a.cheio?'Tanque cheio':'Parcial'} • ${esc(a.pagamento)}</small></div><div><strong>${moeda(a.total)}</strong><button type="button" class="btn-mini" data-abs-excluir="${esc(a.id)}">Excluir</button></div></div>`).join(''):'<p>Nenhum abastecimento registrado.</p>';
 }
 document.getElementById('vei-form').addEventListener('submit',e=>{
- e.preventDefault();if(!contaListasId)return alert('Entre na sua conta.');
+ e.preventDefault();if(!contaListasId)return nexAviso('Entre na sua conta.');
  const nome=document.getElementById('vei-nome').value.trim(),modelo=document.getElementById('vei-modelo').value.trim();
  const ano=Number(document.getElementById('vei-ano').value),tanque=numero(document.getElementById('vei-tanque').value);
- if(!nome||!modelo||!Number.isInteger(ano)||ano<1950||ano>2100||!Number.isFinite(tanque)||tanque<=0||tanque>500)return alert('Confira os dados do veículo.');
+ if(!nome||!modelo||!Number.isInteger(ano)||ano<1950||ano>2100||!Number.isFinite(tanque)||tanque<=0||tanque>500)return nexAviso('Confira os dados do veículo.');
  const v={id:crypto.randomUUID(),nome,modelo,ano,combustivel:document.getElementById('vei-combustivel').value,tanque};
  veiculos.push(v);if(!salvarVeiculos()){veiculos.pop();return;}e.target.reset();renderVeiculos();
 });
 document.getElementById('abs-form').addEventListener('submit',e=>{
- e.preventDefault();if(!contaListasId)return alert('Entre na sua conta.');
+ e.preventDefault();if(!contaListasId)return nexAviso('Entre na sua conta.');
  const veiculoId=document.getElementById('abs-veiculo').value;
- if(!veiculos.some(v=>v.id===veiculoId))return alert('Cadastre um veículo primeiro.');
+ if(!veiculos.some(v=>v.id===veiculoId))return nexAviso('Cadastre um veículo primeiro.');
  const data=document.getElementById('abs-data').value,km=numero(document.getElementById('abs-km').value),litros=numero(document.getElementById('abs-litros').value),preco=numero(document.getElementById('abs-preco').value);
- if(!/^\d{4}-\d{2}-\d{2}$/.test(data)||![km,litros,preco].every(Number.isFinite)||km<0||litros<=0||preco<=0||litros>500||preco>999)return alert('Confira os dados do abastecimento.');
+ if(!/^\d{4}-\d{2}-\d{2}$/.test(data)||![km,litros,preco].every(Number.isFinite)||km<0||litros<=0||preco<=0||litros>500||preco>999)return nexAviso('Confira os dados do abastecimento.');
  const anteriores=abastecimentosOrdenados(veiculoId);
- if(anteriores.some(a=>a.km===km))return alert('Já existe um abastecimento com essa quilometragem para este veículo.');
- if(anteriores.length && km<=anteriores[anteriores.length-1].km)return alert('A quilometragem precisa ser maior que a do último abastecimento registrado.');
- if(anteriores.length && data<anteriores[anteriores.length-1].data)return alert('A data precisa ser igual ou posterior ao último abastecimento.');
+ if(anteriores.some(a=>a.km===km))return nexAviso('Já existe um abastecimento com essa quilometragem para este veículo.');
+ if(anteriores.length && km<=anteriores[anteriores.length-1].km)return nexAviso('A quilometragem precisa ser maior que a do último abastecimento registrado.');
+ if(anteriores.length && data<anteriores[anteriores.length-1].data)return nexAviso('A data precisa ser igual ou posterior ao último abastecimento.');
  const total=centavos(litros*preco)/100;
  const a={id:crypto.randomUUID(),veiculoId,data,km,litros,preco,posto:document.getElementById('abs-posto').value.trim(),cheio:document.getElementById('abs-cheio').value==='sim',pagamento:document.getElementById('abs-pagamento').value,total};
  abastecimentos.push(a);if(!salvarVeiculos()){abastecimentos.pop();return;}
@@ -1123,9 +1159,9 @@ async function betaRefreshConsent(){
  }finally{if(contaListasId===id && !betaConsentBusy)el.disabled=false;}
 }
 function betaExport(){
- if(!usuarioLogado||!contaListasId){alert('Entre na sua conta primeiro.');return}
+ if(!usuarioLogado||!contaListasId){nexAviso('Entre na sua conta primeiro.');return}
  const datasets={};for(const key of betaKeys(contaListasId)){
-   const raw=localStorage.getItem(key);try{datasets[key]=raw===null?[]:JSON.parse(raw)}catch(e){alert('Há dados locais inválidos. Exportação interrompida para sua segurança.');return}
+   const raw=localStorage.getItem(key);try{datasets[key]=raw===null?[]:JSON.parse(raw)}catch(e){nexAviso('Há dados locais inválidos. Exportação interrompida para sua segurança.');return}
  }
  const payload={format:'nexvora-backup',schemaVersion:1,appVersion:BETA_VERSION,exportedAt:new Date().toISOString(),accountId:contaListasId,datasets};
  const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
@@ -1133,19 +1169,19 @@ function betaExport(){
  betaStatus('Backup exportado. Guarde o arquivo em local privado: ele contém seus dados financeiros.');
 }
 async function betaImport(file){
- if(!file||!usuarioLogado||!contaListasId){alert('Entre na sua conta primeiro.');return}
- if(file.size>10*1024*1024){alert('Arquivo muito grande (máximo 10 MB).');return}
- let payload;try{payload=JSON.parse(await file.text())}catch(e){alert('Arquivo JSON inválido.');return}
+ if(!file||!usuarioLogado||!contaListasId){nexAviso('Entre na sua conta primeiro.');return}
+ if(file.size>10*1024*1024){nexAviso('Arquivo muito grande (máximo 10 MB).');return}
+ let payload;try{payload=JSON.parse(await file.text())}catch(e){nexAviso('Arquivo JSON inválido.');return}
  if(payload?.format!=='nexvora-backup'||payload.schemaVersion!==1||payload.accountId!==contaListasId||!payload.datasets||typeof payload.datasets!=='object'){
-  alert('Backup incompatível ou pertencente a outra conta. Nenhum dado foi alterado.');return;
+  nexAviso('Backup incompatível ou pertencente a outra conta. Nenhum dado foi alterado.');return;
  }
  const keys=betaKeys(contaListasId),dados={};
- for(const k of keys){if(!Object.prototype.hasOwnProperty.call(payload.datasets,k)||!Array.isArray(payload.datasets[k])){alert('Backup incompleto. Nenhum dado foi alterado.');return}dados[k]=JSON.stringify(payload.datasets[k])}
+ for(const k of keys){if(!Object.prototype.hasOwnProperty.call(payload.datasets,k)||!Array.isArray(payload.datasets[k])){nexAviso('Backup incompleto. Nenhum dado foi alterado.');return}dados[k]=JSON.stringify(payload.datasets[k])}
  if(!confirm('ATENÇÃO: restaurar substituirá os dados atuais deste navegador pelos do backup. Deseja continuar?'))return;
  // Preparação em memória e rollback em caso de erro de gravação.
  const antigos={};for(const k of keys)antigos[k]=localStorage.getItem(k);
- try{for(const k of keys)localStorage.setItem(k,dados[k])}catch(e){for(const k of keys){try{if(antigos[k]===null)localStorage.removeItem(k);else localStorage.setItem(k,antigos[k])}catch(_){}}alert('Falha na restauração; tentamos preservar os dados anteriores.');return}
- carregarListas(contaListasId);renderHub();betaStatus('Backup restaurado. Confira seus registros.');alert('Restauração concluída. Confira seus registros.');
+ try{for(const k of keys)localStorage.setItem(k,dados[k])}catch(e){for(const k of keys){try{if(antigos[k]===null)localStorage.removeItem(k);else localStorage.setItem(k,antigos[k])}catch(_){}}nexAviso('Falha na restauração; tentamos preservar os dados anteriores.');return}
+ carregarListas(contaListasId);renderHub();betaStatus('Backup restaurado. Confira seus registros.');nexAviso('Restauração concluída. Confira seus registros.');
 }
 document.getElementById('beta-export').addEventListener('click',betaExport);
 document.getElementById('beta-import').addEventListener('change',async e=>{const file=e.target.files?.[0];if(file)await betaImport(file);e.target.value=''});
