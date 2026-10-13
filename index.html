@@ -485,7 +485,7 @@ html[data-theme="dark"] .beta-tools{background:#152832;color:#e5f3f1;border-colo
     const SUPABASE_URL = "https://dxlewbofnvxruytbukzn.supabase.co";
     // Chave publicável (anon/publishable): apropriada para o navegador, com RLS ativo.
     const SUPABASE_KEY = "sb_publishable_NWKzrSWCtPyk-pPXEWcD7g_-QmEtwjO";
-    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {auth:{detectSessionInUrl:false}});
 
     // PASSO 136: alternância visual entre módulos, sem alterar a autenticação.
     function navegarModulo(modulo) {
@@ -509,6 +509,7 @@ html[data-theme="dark"] .beta-tools{background:#152832;color:#e5f3f1;border-colo
     let usuarioLogado = false;
     let nexAtivacaoPendente = false;
     let nexAtivacaoEmAndamento = false;
+    let nexTipoAtivacao = 'invite';
     function mostrarTela(nome) {
       for (const id of ["tela-inicial", "tela-login", "tela-painel"]) {
         document.getElementById(id).hidden = id !== nome;
@@ -641,13 +642,17 @@ html[data-theme="dark"] .beta-tools{background:#152832;color:#e5f3f1;border-colo
 
     document.getElementById("btn-recuperar-senha").addEventListener("click",()=>nexAviso("A recuperação de senha será implementada em uma próxima etapa."));
 
-    // PASSO 169 — Aceite do convite: a sessão de ativação não abre o painel até definir a senha.
-    function nexMostrarAtivacao() {
-      document.getElementById('titulo-auth').textContent = 'Ative seu acesso';
-      document.getElementById('descricao-auth').textContent = 'Bem-vindo ao NEXVORA by AXION!';
+    // PASSO 182 — Links de convite e recuperação tratados separadamente.
+    function nexMostrarAtivacao(tipo = 'invite') {
+      nexTipoAtivacao = tipo;
+      const recuperacao = tipo === 'recovery';
+      document.getElementById('titulo-auth').textContent = recuperacao ? 'Redefina sua senha' : 'Ative seu acesso';
+      document.getElementById('descricao-auth').textContent = recuperacao ? 'Escolha uma nova senha para continuar no NEXVORA.' : 'Bem-vindo ao NEXVORA by AXION!';
+      document.getElementById('nex-ativar-conta').textContent = recuperacao ? 'Salvar nova senha' : 'Ativar minha conta';
       document.getElementById('form-login').hidden = true;
       document.getElementById('nex-tela-convite').hidden = true;
       document.getElementById('nex-form-ativacao').hidden = false;
+      document.getElementById('nex-ativacao-erro').hidden = true;
       document.getElementById('btn-criar-conta').hidden = true;
       document.getElementById('btn-recuperar-senha').parentElement.hidden = true;
       document.getElementById('voltar-inicio').hidden = true;
@@ -660,42 +665,46 @@ html[data-theme="dark"] .beta-tools{background:#152832;color:#e5f3f1;border-colo
       const url = new URL(window.location.href);
       const query = url.searchParams;
       const hash = new URLSearchParams(url.hash.replace(/^#/, ''));
-      const tokenHash = query.get('token_hash');
       const tipo = query.get('type') || hash.get('type');
-      const temCodigo = query.has('code');
-      const temTokens = hash.has('access_token') && hash.has('refresh_token');
-      const retornoConvite = tipo === 'invite' || (tokenHash && tipo === 'invite') || temCodigo || temTokens;
-      if (!retornoConvite) { await atualizarBotaoSair(); return; }
+      const tokenHash = query.get('token_hash') || hash.get('token_hash');
+      const codigo = query.get('code');
+      const accessToken = hash.get('access_token');
+      const refreshToken = hash.get('refresh_token');
+      const erroRetorno = query.get('error') || hash.get('error');
+      const retornoAuth = Boolean(tokenHash || codigo || accessToken || erroRetorno || tipo === 'invite' || tipo === 'recovery');
+      if (!retornoAuth) { await atualizarBotaoSair(); return; }
       nexAtivacaoPendente = true;
-      nexMostrarAtivacao();
+      const modo = tipo === 'recovery' ? 'recovery' : 'invite';
+      nexMostrarAtivacao(modo);
       try {
-        if (tokenHash && tipo === 'invite') {
-          const {error} = await supabaseClient.auth.verifyOtp({token_hash:tokenHash,type:'invite'});
+        if (erroRetorno) throw new Error(query.get('error_description') || hash.get('error_description') || 'Link rejeitado pelo serviço de autenticação.');
+        if (tokenHash) {
+          const {error} = await supabaseClient.auth.verifyOtp({token_hash:tokenHash,type:modo});
           if (error) throw error;
-        } else if (temCodigo) {
-          // Supabase-js pode trocar o código automaticamente durante a inicialização.
-          let {data} = await supabaseClient.auth.getSession();
-          if (!data?.session) {
-            const result = await supabaseClient.auth.exchangeCodeForSession(query.get('code'));
-            if (result.error) throw result.error;
-          }
+        } else if (codigo) {
+          const {error} = await supabaseClient.auth.exchangeCodeForSession(codigo);
+          if (error) throw error;
+        } else if (accessToken && refreshToken) {
+          const {error} = await supabaseClient.auth.setSession({access_token:accessToken,refresh_token:refreshToken});
+          if (error) throw error;
         }
-        const {data,error} = await supabaseClient.auth.getSession();
-        if (error || !data?.session?.user?.id) throw (error || new Error('Sessão de convite não encontrada'));
-        const permitido = await nexValidarConvite(data.session.user.id);
+        const {data,error} = await supabaseClient.auth.getUser();
+        if (error || !data?.user?.id) throw (error || new Error('Não foi possível validar a sessão.'));
+        const permitido = await nexValidarConvite(data.user.id);
         if (!permitido) throw new Error('Este e-mail não está autorizado pela AXION.');
-        // Retira tokens e códigos da barra de endereço assim que o convite for validado.
         window.history.replaceState(null,'',window.location.pathname);
-        nexMostrarAtivacao();
+        nexMostrarAtivacao(modo);
       } catch (erro) {
-        console.warn('Falha na ativação do convite:',erro);
+        console.warn('Falha ao processar link de autenticação:',erro);
         nexAtivacaoPendente = false;
-        await supabaseClient.auth.signOut().catch(()=>{});
         window.history.replaceState(null,'',window.location.pathname);
+        await supabaseClient.auth.signOut().catch(()=>{});
         document.getElementById('nex-form-ativacao').hidden = true;
         document.getElementById('voltar-inicio').hidden = false;
-        abrirAutenticacao(true);
-        nexAviso('O link de convite é inválido, expirou ou não está autorizado. Solicite um novo convite à AXION.');
+        abrirAutenticacao(false);
+        nexAviso(modo === 'recovery'
+          ? 'Não foi possível validar o link de recuperação de senha. Solicite um novo link à AXION.'
+          : 'Não foi possível validar o convite. Confirme a autorização do e-mail e solicite um novo link à AXION.');
       }
     }
     document.getElementById('nex-form-ativacao').addEventListener('submit',async function(evento){
@@ -713,10 +722,10 @@ html[data-theme="dark"] .beta-tools{background:#152832;color:#e5f3f1;border-colo
       nexAtivacaoEmAndamento = true;
       const botao = document.getElementById('nex-ativar-conta');
       botao.disabled = true;
-      botao.textContent = 'Ativando...';
+      botao.textContent = 'Salvando...';
       try {
         const {data:authData,error:authError} = await supabaseClient.auth.getUser();
-        if (authError || !authData?.user?.id) throw new Error('Sessão de ativação expirada. Solicite outro convite.');
+        if (authError || !authData?.user?.id) throw new Error('Sessão expirada. Solicite um novo link.');
         if (!await nexValidarConvite(authData.user.id)) throw new Error('Este e-mail não está autorizado pela AXION.');
         const {error} = await supabaseClient.auth.updateUser({password:senha});
         if (error) throw error;
@@ -725,24 +734,21 @@ html[data-theme="dark"] .beta-tools{background:#152832;color:#e5f3f1;border-colo
         nexAtivacaoPendente = false;
         document.getElementById('nex-form-ativacao').hidden = true;
         document.getElementById('voltar-inicio').hidden = false;
-        // PASSO 175: após salvar a senha, confirmar a sessão e autorização antes de abrir o painel.
-        // atualizarBotaoSair faz a verificação no servidor e carrega os módulos apenas se autorizado.
         await atualizarBotaoSair();
         if (usuarioLogado && nexAuthorizedUserId === authData.user.id) {
-          nexAviso('Conta ativada com sucesso! Bem-vindo ao NEXVORA.');
+          nexAviso('Senha salva com sucesso! Bem-vindo ao NEXVORA.');
         } else {
-          // Sem sessão válida, solicitar login; nunca liberar o painel por conta própria.
           abrirAutenticacao(false);
-          nexAviso('Senha cadastrada! Entre com seu e-mail e a nova senha para continuar.');
+          nexAviso('Senha salva! Entre com seu e-mail e sua nova senha.');
         }
       } catch(erro) {
         console.warn('Erro ao definir senha:',erro);
-        erroEl.textContent = erro.message || 'Não foi possível ativar sua conta. Tente novamente.';
+        erroEl.textContent = erro.message || 'Não foi possível salvar a senha. Tente novamente.';
         erroEl.hidden = false;
       } finally {
         nexAtivacaoEmAndamento = false;
         botao.disabled = false;
-        botao.textContent = 'Ativar minha conta';
+        botao.textContent = nexTipoAtivacao === 'recovery' ? 'Salvar nova senha' : 'Ativar minha conta';
       }
     });
     supabaseClient.auth.onAuthStateChange(function () {
